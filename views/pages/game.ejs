@@ -8,44 +8,57 @@
     <body>
         <!-- Ask for username to display in the chat -->
         <div id="login-wrap">
-            <br><br><br>
+            <h1>Join Game</h1>
+            <p>Enter a display name to join the game.</p>
             <form id="login-form">
-                <label for="nme"><span>Enter a display name.</span></label><br>
-                <input autofocus type="text" name="name" class="question" id="name-input" required autocomplete="off" maxlength="12" />
+                <input autofocus type="text" name="name" class="question" id="name-input" required autocomplete="off" maxlength="12" placeholder="Your name" />
                 <input type="submit" value="Play">
             </form>
         </div>
 
         <!-- display the canvas and chatbox -->
-        <div id="game-wrap" style="width:800px;display:none;margin: 0 auto; margin-top: 0;">
-            <div id="center" style="width:800px;margin: 0 auto;"><a href="/"><img style="position:relative; left:70px;" width="400px" src="/client/logo.jpg"/></a></div>
-            <div id="canvas-wrap" style="width: 540px;height: 540px;position: relative;top: 0;right: 0;">
-                <canvas id="ctx" width="540" height="540" style="display:inline;"></canvas>
+        <div id="game-wrap" style="display:none;">
+            <div id="center">
+                <a href="/" target="_blank" rel="noopener noreferrer"><img width="320px" src="/client/logo.png" alt="Ricochet Robots Logo"/></a>
             </div>
-            <div id="chat-wrap" style="outline: 2px solid black;outline-offset: -2px;width:300px;height:540px;position:relative; left:540px; bottom:540px;">
-                <div id="chat-text" style="width:100%;height:480px;overflow-y:scroll;display: flex;flex-direction: column-reverse;">
+            
+            <div class="game-container">
+                <div id="canvas-wrap">
+                    <canvas id="ctx" width="540" height="540"></canvas>
                 </div>
-                <form id="chat-form" style="">
-                    <input id="chat-input" class="question" type="text" style="width:300px;height:50px;border-top: 2px solid black;z-index: -1000;" placeholder="Type a message...">
-                </form>
-                <div style="display: flex; justify-content: space-around; padding: 5px;">
-                    <button style="width:90px;" type="gamebutton" id="start-timer">Start Timer</button>
-                    <button style="width:90px;" type="gamebutton" id="reset-pieces">Reset</button>
-                    <button style="width:90px;" type="gamebutton" id="new-game">New Level</button>
+                
+                <div id="chat-wrap">
+                    <div id="user-list">
+                        <span class="user-count">1</span> user online
+                    </div>
+                    <div id="chat-text"></div>
+                    <form id="chat-form">
+                        <input id="chat-input" type="text" placeholder="Type a message...">
+                    </form>
+                    <div class="controls-container">
+                        <button type="gamebutton" id="start-timer">Timer</button>
+                        <button type="gamebutton" id="reset-pieces">Reset</button>
+                        <button type="gamebutton" id="new-game">New Level</button>
+                    </div>
                 </div>
             </div>
-            <div id="url" style="position:relative; bottom:530px;z-index:100;">Share this link to play with friends</div>
-            <div id="instructions" style="position:relative; bottom:520px;z-index:100;">
-                <h3>Controls:</h3>
+
+            <div id="url">Share this link to play with friends</div>
+            
+            <div id="instructions">
+                <h3>How to Play</h3>
                 <ul>
-                    <li>Select robots with number keys: 1 (Red), 2 (Green), 3 (Blue), 4 (Yellow)</li>
-                    <li>Move selected robot with arrow keys</li>
-                    <li>Press Space to reset pieces</li>
-                    <li>Press N for a new level</li>
+                    <li><strong>Select robots</strong> with number keys: 1 (Red), 2 (Green), 3 (Blue), 4 (Yellow)</li>
+                    <li><strong>Move</strong> the selected robot with arrow keys</li>
+                    <li>Press <strong>Space</strong> to reset pieces</li>
+                    <li>Press <strong>N</strong> for a new level</li>
                 </ul>
                 <p>The goal is to move the colored robot to the matching goal space using the fewest moves!</p>
             </div>
         </div>
+
+        <!-- Connection status indicator -->
+        <div id="connection-status" class="connection-status" style="display:none;">Connected</div>
 
         <!-- the following scripts control client game rendering -->
         <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -86,47 +99,61 @@
                 });
             }
 
-            // Load all the images
-            Promise.all([
-                loadImage('/client/border.png'),
-                loadImage('/client/wall.png'),
-                loadImage('/client/tile.png'),
-                loadImage('/client/red.png'),
-                loadImage('/client/green.png'),
-                loadImage('/client/blue.png'),
-                loadImage('/client/yellow.png')
-            ]).then(images => {
-                const [border, wall, tile, redpiece, greenpiece, bluepiece, yellowpiece] = images;
-                
-                // Store the images for later use
-                window.gameImages = {
-                    border, wall, tile, redpiece, greenpiece, bluepiece, yellowpiece
-                };
-                
-                // If we have a game loaded and images ready, trigger a redraw
+            // Try to load SVGs first, then fall back to PNGs if available
+            const imageSources = [
+                { name: 'border', src: '/client/border.svg' },
+                { name: 'wall', src: '/client/wall.svg' },
+                { name: 'tile', src: '/client/tile.svg' },
+                { name: 'redpiece', src: '/client/red.png' },
+                { name: 'greenpiece', src: '/client/green.png' },
+                { name: 'bluepiece', src: '/client/blue.png' },
+                { name: 'yellowpiece', src: '/client/yellow.png' }
+            ];
+
+            // Get DOM elements
+            const urlDiv = document.getElementById("url");
+            const loginWrap = document.getElementById("login-wrap");
+            const gameWrap = document.getElementById("game-wrap");
+            const loginForm = document.getElementById('login-form');
+            const nameInput = document.getElementById('name-input');
+            const chatText = document.getElementById('chat-text');
+            const chatInput = document.getElementById('chat-input');
+            const chatForm = document.getElementById('chat-form');
+            const canvas = document.getElementById("ctx");
+            const ctx = document.getElementById("ctx").getContext("2d");
+            const connectionStatus = document.getElementById("connection-status");
+            
+            let clientname;
+            const roomid = window.location.pathname.split('id-').pop();
+            let loaded = false;
+            window.loaded = false;
+            window.gameImages = {};
+
+            // Load all images
+            Promise.all(imageSources.map(img => 
+                loadImage(img.src).then(loadedImg => {
+                    window.gameImages[img.name] = loadedImg;
+                    return loadedImg;
+                }).catch(err => {
+                    // Try fallback to PNG if SVG fails
+                    const pngSrc = img.src.replace('.svg', '.png');
+                    return loadImage(pngSrc).then(loadedImg => {
+                        window.gameImages[img.name] = loadedImg;
+                        return loadedImg;
+                    }).catch(err => {
+                        console.error(`Failed to load ${img.name} image:`, err);
+                        // Will use canvas fallback from loadImage function
+                    });
+                })
+            )).then(() => {
+                console.log("All images loaded");
                 if (window.loaded && window.game) {
                     drawGame(window.game);
                 }
             });
 
-            //read in form inputs and html/canvas elements
-            var urlDiv = document.getElementById("url");
-            var loginWrap = document.getElementById("login-wrap");
-            var gameWrap = document.getElementById("game-wrap");
-            var loginForm = document.getElementById('login-form');
-            var nameInput = document.getElementById('name-input');
-            var chatText = document.getElementById('chat-text');
-            var chatInput = document.getElementById('chat-input');
-            var chatForm = document.getElementById('chat-form');
-            var canvas = document.getElementById("ctx");
-            var ctx = document.getElementById("ctx").getContext("2d");
-            var clientname;
-            var roomid = window.location.pathname.split('id-').pop();
-            var loaded = false;
-            window.loaded = false;
-
             // Configure Socket.IO with reconnection settings
-            var socket = io({
+            const socket = io({
                 reconnection: true,
                 reconnectionAttempts: Infinity,
                 reconnectionDelay: 1000,
@@ -134,13 +161,54 @@
                 timeout: 20000
             });
 
+            // Connection status updates
+            socket.on('connect', function() {
+                connectionStatus.textContent = "Connected";
+                connectionStatus.className = "connection-status";
+                connectionStatus.style.display = "block";
+                setTimeout(() => {
+                    connectionStatus.style.display = "none";
+                }, 3000);
+            });
+
+            socket.on('disconnect', function() {
+                connectionStatus.textContent = "Disconnected";
+                connectionStatus.className = "connection-status disconnected";
+                connectionStatus.style.display = "block";
+            });
+
+            socket.on('reconnecting', function(attemptNumber) {
+                connectionStatus.textContent = `Reconnecting (${attemptNumber})...`;
+                connectionStatus.className = "connection-status reconnecting";
+                connectionStatus.style.display = "block";
+            });
+
             //when a user provides their displayname, send to server
             //also send the server the roomid of the room user is joining
             loginForm.onsubmit = function(e){
                 e.preventDefault();
-                clientname = nameInput.value;
+                clientname = nameInput.value || 'Guest-' + Math.floor(Math.random() * 1000);
                 socket.emit('sendRoomidToServer', roomid);
-                socket.emit('sendDisplaynameToServer', [nameInput.value]);
+                socket.emit('sendDisplaynameToServer', [clientname]);
+                
+                // If the server doesn't respond within 3 seconds, show the game anyway
+                setTimeout(function() {
+                    if (loginWrap.style.display !== "none") {
+                        console.log("Server response timeout - showing game anyway");
+                        loginWrap.style.display = "none";
+                        gameWrap.style.display = "block";
+                        loaded = true;
+                        window.loaded = true;
+                        
+                        chatText.innerHTML = "<div id='server-message'>Starting game with limited connectivity. Some features may not work correctly.</div>" + chatText.innerHTML;
+                        
+                        // Update URL display
+                        const protocol = window.location.protocol;
+                        const host = window.location.host;
+                        const fullUrl = `${protocol}//${host}/id-${roomid}`;
+                        urlDiv.innerHTML = `Share this link to play with friends: <a href="${fullUrl}">${fullUrl}</a>`;
+                    }
+                }, 3000);
             }
 
             //Server tells client to showboard after user submits their display name
@@ -154,7 +222,13 @@
                 const protocol = window.location.protocol;
                 const host = window.location.host;
                 const fullUrl = `${protocol}//${host}/id-${roomid}`;
-                urlDiv.innerHTML = `Share this link to play with friends: <a href="${fullUrl}">${fullUrl}</a>`;
+                urlDiv.innerHTML = `Share this link to play with friends: <a href="${fullUrl}" target="_blank" rel="noopener noreferrer">${fullUrl}</a>`;
+                
+                // Initialize user list with just the current user
+                if (roomUsers.length === 0) {
+                    roomUsers = [clientname];
+                    updateUserList();
+                }
             });
 
             //Send a chat message to the server
@@ -170,8 +244,52 @@
                 chatInput.value = '';
             }
 
+            // Variables to track users in the room
+            let roomUsers = [];
+            const userList = document.getElementById('user-list');
+            
+            // Function to update the user list display
+            function updateUserList() {
+                const userList = document.getElementById('user-list');
+                const userCount = document.querySelector('.user-count');
+                
+                if (!userList || !userCount) return;
+                
+                const count = roomUsers.length;
+                userCount.textContent = count;
+                
+                // Update the text to show "x user(s) online"
+                if (count === 1) {
+                    userList.innerHTML = '<span class="user-count">1</span> user online';
+                } else {
+                    userList.innerHTML = `<span class="user-count">${count}</span> users online`;
+                }
+                
+                // Add tooltip with user names
+                if (count > 0) {
+                    const names = roomUsers.map(user => 
+                        user === clientname ? 'You' : user
+                    ).join(', ');
+                    userList.title = names;
+                }
+                
+                console.log('Updated user list display:', roomUsers);
+            }
+            
+            // When a user joins, update the user list
+            socket.on('updateUserList', function(users) {
+                console.log('User list updated:', users);
+                if (!users || !Array.isArray(users)) {
+                    console.error('Invalid user list received:', users);
+                    return;
+                }
+                roomUsers = users;
+                updateUserList();
+            });
+            
             //Server tells client to display a chat message the room received
             socket.on('addToChat', function(data){
+                // Check if the message came from the current user
                 if(data.includes(clientname+"</span>:")){
                     chatText.innerHTML = "<div id='this-player'>" + data + '</div>' + chatText.innerHTML;
                 }
@@ -303,7 +421,7 @@
                 ctx.fillRect(boardTopx+8*squareSize, boardTopy+8*squareSize, squareSize*2, squareSize*2);
                 //draw the timer on the center piece if its value is not 0
                 ctx.fillStyle = "white";
-                ctx.font = '30px sans-serif';
+                ctx.font = 'bold 30px sans-serif';
                 ctx.textAlign = "center";
                 if(game.timer > 0){
                     ctx.fillText(game.timer, boardTopx+9*squareSize, boardTopy+9.25*squareSize);
@@ -312,8 +430,9 @@
                 ctx.lineWidth = 4;
                 ctx.strokeStyle = "black";
                 ctx.strokeRect(boardTopx+squareSize-ctx.lineWidth/2, boardTopy+squareSize-ctx.lineWidth/2, 
-                              squareSize*game.board.length-squareSize*2+ctx.lineWidth, squareSize*game.board.length-squareSize*2+ctx.lineWidth)
-                //draw the goal. bigger size is smaller.
+                              squareSize*game.board.length-squareSize*2+ctx.lineWidth, squareSize*game.board.length-squareSize*2+ctx.lineWidth);
+                              
+                //draw the goal
                 goalsize = 1.5;
                 ctx.fillStyle = game.goalColorPosition.color;
                 ctx.globalAlpha = 0.6;
@@ -321,6 +440,61 @@
                             boardTopy+game.goalColorPosition.position[0]*squareSize+((squareSize-squareSize/goalsize)/2), 
                             squareSize/goalsize, squareSize/goalsize);
                 ctx.globalAlpha = 1.0;
+                
+                // Set default selected piece to the target color if not already selected
+                if (!window.initialPieceSelected && game.currPiece !== game.goalColorPosition.color) {
+                    socket.emit('keyPress', {roomid: roomid, inputId: getKeyForColor(game.goalColorPosition.color), state: true});
+                    socket.emit('keyPress', {roomid: roomid, inputId: getKeyForColor(game.goalColorPosition.color), state: false});
+                    window.initialPieceSelected = true;
+                }
+                
+                // Highlight the current piece with a glow effect that matches its color
+                ctx.save();
+                if (game.piecePositions[game.currPiece]) {
+                    const currPos = game.piecePositions[game.currPiece];
+                    const xPos = boardTopx + currPos[1] * squareSize;
+                    const yPos = boardTopy + currPos[0] * squareSize;
+                    
+                    // Get highlight color based on piece
+                    let highlightColor;
+                    switch(game.currPiece) {
+                        case 'red': 
+                            highlightColor = 'rgba(231, 76, 60, 0.5)'; // Red
+                            break;
+                        case 'green': 
+                            highlightColor = 'rgba(46, 204, 113, 0.5)'; // Green
+                            break;
+                        case 'blue': 
+                            highlightColor = 'rgba(52, 152, 219, 0.5)'; // Blue
+                            break;
+                        case 'yellow': 
+                            highlightColor = 'rgba(241, 196, 15, 0.5)'; // Yellow
+                            break;
+                        default:
+                            highlightColor = 'rgba(255, 255, 0, 0.3)'; // Default yellow
+                    }
+                    
+                    // Draw highlight glow
+                    ctx.shadowColor = highlightColor;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(xPos + squareSize/2, yPos + squareSize/2, squareSize/2 + 5, 0, Math.PI * 2);
+                    ctx.fillStyle = highlightColor;
+                    ctx.fill();
+                    
+                    // Add pulsing animation effect
+                    const time = new Date().getTime() * 0.001; // Time in seconds
+                    const pulseOpacity = 0.3 + 0.2 * Math.sin(time * 3); // Pulse between 0.3 and 0.5 opacity
+                    
+                    ctx.globalAlpha = pulseOpacity;
+                    ctx.beginPath();
+                    ctx.arc(xPos + squareSize/2, yPos + squareSize/2, squareSize/2 + 8, 0, Math.PI * 2);
+                    ctx.fillStyle = highlightColor;
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+                ctx.restore();
+                
                 //draw each game piece
                 for(piece in game.piecePositions){
                     let yOffset = boardTopy + game.piecePositions[piece][0]*squareSize;
@@ -343,17 +517,48 @@
                     }
                 }
             }
+            
+            // Helper function to get the key for a color
+            function getKeyForColor(color) {
+                switch(color) {
+                    case 'red': return 'one';
+                    case 'green': return 'two';
+                    case 'blue': return 'three';
+                    case 'yellow': return 'four';
+                    default: return 'one';
+                }
+            }
 
             socket.on('gameUpdate', function(games){
-                if(loaded){
+                if(!loaded) return;
+                
+                try {
+                    if (!games || typeof games !== 'object') {
+                        console.error('Invalid game data received');
+                        return;
+                    }
+                    
                     const game = games[roomid];
-                    if (!game) return; // Safety check
+                    if (!game) {
+                        console.log('No game data for this room');
+                        return;
+                    }
                     
                     // Store the game for potential redraws
                     window.game = game;
                     
                     // Draw the game
                     drawGame(game);
+                    
+                    // Check if user list needs updating (backup method)
+                    if (game.userList && Array.isArray(game.userList) && 
+                        JSON.stringify(roomUsers) !== JSON.stringify(game.userList)) {
+                        console.log('Updating user list from gameUpdate:', game.userList);
+                        roomUsers = [...game.userList];
+                        updateUserList();
+                    }
+                } catch (error) {
+                    console.error('Error in gameUpdate handler:', error);
                 }
             });
 
@@ -366,6 +571,8 @@
                 
                 var resetbutton = document.getElementById('reset-pieces');
                 resetbutton.onclick = function(){
+                    // Reset the piece selection flag
+                    window.initialPieceSelected = false;
                     socket.emit('resetPieces', roomid);
                 }
                 
@@ -378,11 +585,20 @@
             // Handle connection errors
             socket.on('connect_error', function(error) {
                 console.log('Connection error:', error);
+                connectionStatus.textContent = "Connection Error";
+                connectionStatus.className = "connection-status disconnected";
+                connectionStatus.style.display = "block";
                 chatText.innerHTML = "<div id='server-message'>Connection error. Attempting to reconnect...</div>" + chatText.innerHTML;
             });
             
             socket.on('reconnect', function(attemptNumber) {
                 console.log('Reconnected after', attemptNumber, 'attempts');
+                connectionStatus.textContent = "Reconnected";
+                connectionStatus.className = "connection-status";
+                connectionStatus.style.display = "block";
+                setTimeout(() => {
+                    connectionStatus.style.display = "none";
+                }, 3000);
                 chatText.innerHTML = "<div id='server-message'>Reconnected to the server.</div>" + chatText.innerHTML;
             });
         </script>

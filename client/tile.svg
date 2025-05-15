@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+  <!-- Board Tile -->
+  <defs>
+    <linearGradient id="tileGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8f9fa" />
+      <stop offset="100%" stop-color="#e9ecef" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="30" height="30" fill="url(#tileGradient)" stroke="#ced4da" stroke-width="0.5" />
+  
+  <!-- Subtle grid pattern -->
+  <line x1="0" y1="10" x2="30" y2="10" stroke="#dee2e6" stroke-width="0.2" />
+  <line x1="0" y1="20" x2="30" y2="20" stroke="#dee2e6" stroke-width="0.2" />
+  <line x1="10" y1="0" x2="10" y2="30" stroke="#dee2e6" stroke-width="0.2" />
+  <line x1="20" y1="0" x2="20" y2="30" stroke="#dee2e6" stroke-width="0.2" />
+</svg>

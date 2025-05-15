@@ -47,6 +47,7 @@ console.log("Server started on port " + port);
 //4. piecePositions    - current location for all pieces
 //5. goalColorPosition - current goal and goal color
 //6. timer             - value of countdown timer
+//7. userList          - array of usernames in the room
 var games = {}
 
 //use https
@@ -75,28 +76,48 @@ app.get('/id-:channel', function(req, res) {
 //use the client folder to server static resources like images
 app.use('/client', express.static(path.join(__dirname, 'client')));
 
-//if the game doesn't already exist, start it. Run whenever a user visits a valid room url
-function createNewGame(roomid){
-    //add the roomid to the games list, along with the board, and piece positions
-    board = generateBoard();
-    startPositions = setStartPositions(board);
-    piecePositions = JSON.parse(JSON.stringify(startPositions));
-    goalPosition = setGoalPosition(board, startPositions);
-    games[roomid] = {
-        socketsInGame: [],
-        board: board,
-        currPiece: 'red',
-        startingPositions: startPositions,
-        piecePositions: piecePositions,
-        goalColorPosition: goalPosition,
-        timer: 0,
-        //the startingpositions and the piece positions are the same
-        //startingpositions exists so players can revert pieces to these positions
-        //goalColorPosition is an object that contains keys:
-        //1. color - string, which color needs to reach goal
-        //2. position - array, position where the goal is
-    };
+// Helper function to update user list for all clients in a room
+function updateUserListForRoom(roomid) {
+    if (!roomid || !games[roomid]) {
+        console.error("Cannot update user list: Room not found:", roomid);
+        return;
+    }
+    
+    const sockets = games[roomid].socketsInGame;
+    const userList = games[roomid].userList || [];
+    
+    for (var i in SOCKET_LIST) {
+        if (sockets.includes(parseFloat(i))) {
+            SOCKET_LIST[i].emit('updateUserList', userList);
+        }
+    }
 }
+
+//if the game doesn't already exist, start it. Run whenever a user visits a valid room url
+    //if the game doesn't already exist, start it. Run whenever a user visits a valid room url
+    function createNewGame(roomid){
+        //add the roomid to the games list, along with the board, and piece positions
+        board = generateBoard();
+        startPositions = setStartPositions(board);
+        piecePositions = JSON.parse(JSON.stringify(startPositions));
+        goalPosition = setGoalPosition(board, startPositions);
+        
+        games[roomid] = {
+            socketsInGame: [],
+            board: board,
+            currPiece: goalPosition.color, // Initialize with the target color
+            startingPositions: startPositions,
+            piecePositions: piecePositions,
+            goalColorPosition: goalPosition,
+            timer: 0,
+            userList: []  // Add a userList property
+            //the startingpositions and the piece positions are the same
+            //startingpositions exists so players can revert pieces to these positions
+            //goalColorPosition is an object that contains keys:
+            //1. color - string, which color needs to reach goal
+            //2. position - array, position where the goal is
+        };
+    }
 
 //when the users indicate, create a new level to display by modifying the game object (key = their room id)
 function createNewLevel(roomid){
@@ -129,6 +150,7 @@ setInterval(function(){
 
 var io = require('socket.io')(serv);
 io.on('connection', function(socket){
+    console.log("New connection:", socket.id);
     //******************* ON USER CONNECT *******************
     socket.emit('randomRoomName', generateRandomRoomName());
     //generate a random number to assign as a socket.id to the connecting user
@@ -137,38 +159,71 @@ io.on('connection', function(socket){
     SOCKET_LIST[socket.id] = socket;
     //also receive the roomid from the client, so we can say that this user is in that room (add to room object in the game)
     socket.on('sendRoomidToServer',function(data){
+        if (!data) {
+            console.error("Invalid room ID received");
+            socket.emit('addToChatServer', "Error: Invalid room ID. Please try again.");
+            return;
+        }
+        
         //data received is the roomid, so put that into the usersroomid object, with key socket.id
-        //also put that in the list of socketsingame in the games object
         usersRoomid[socket.id] = data;
+        
+        //if the room doesn't already exist, start a new game in it
         if (!(data in games)){
-            //run function: if the room doesn't already exist, start a new game in it
             createNewGame(data);
         }
+        
+        // Add this socket to the room
         games[data].socketsInGame.push(socket.id);
+        
+        console.log(`User ${socket.id} joined room ${data}`);
     });
 
     //******************* DURING GAME *******************
     //when server gets displayname, tell client to show game board, and tell users in the room that this user joined
-    socket.on('sendDisplaynameToServer',function(data){
+    socket.on('sendDisplaynameToServer', function(data) {
         displaynames[socket.id] = data[0];
-        //tell client to show game board
-        socket.emit('showBoard');
-
-        //tell users in the room that this new user joined
-        currSockets = games[usersRoomid[socket.id]].socketsInGame;
-        currRoomid = usersRoomid[socket.id];
-        playerName = (displaynames[socket.id]);
-        for(var i in SOCKET_LIST){
-            if (currSockets.includes(parseFloat(i))){
-                SOCKET_LIST[i].emit('addToChatServer',displaynames[socket.id] + ' has joined the game');
+        const currRoomid = usersRoomid[socket.id];
+        
+        // Safety check to make sure room exists
+        if (!currRoomid || !games[currRoomid]) {
+            console.error("Room not found for user:", socket.id, "roomid:", currRoomid);
+            socket.emit('addToChatServer', "Error: Room not found. Please try refreshing the page.");
+            // Create the room if it doesn't exist
+            if (currRoomid && !games[currRoomid]) {
+                createNewGame(currRoomid);
+                games[currRoomid].socketsInGame.push(socket.id);
+            } else {
+                return; // Can't proceed without a valid room
             }
         }
+        
+        //tell client to show game board
+        socket.emit('showBoard');
+        
+        const playerName = displaynames[socket.id];
+        const currSockets = games[currRoomid].socketsInGame;
+        
+        // Add user to the userList for this room
+        if (!games[currRoomid].userList.includes(playerName)) {
+            games[currRoomid].userList.push(playerName);
+        }
+        
+        // Send join message
+        for(var i in SOCKET_LIST){
+            if (currSockets.includes(parseFloat(i))){
+                SOCKET_LIST[i].emit('addToChatServer', `${playerName} has joined the game`);
+            }
+        }
+        
+        // Update user list for all clients in the room
+        updateUserListForRoom(currRoomid);
+        
         if(currSockets.length == 1){
             // If in production, use https, otherwise use http
             const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-            SOCKET_LIST[socket.id].emit('addToChatServer',`Send your friends the link so they can join! <a href='${protocol}://${domain}/id-${currRoomid}'>${domain}/id-${currRoomid}</a>`);
+            SOCKET_LIST[socket.id].emit('addToChatServer',`Send your friends the link so they can join! <a target='_blank' href='${protocol}://${domain}/id-${currRoomid}'>${domain}/id-${currRoomid}</a>`);
         }
-
     });
 
     //when server receives message from user, send only to users in the same roomid
@@ -177,7 +232,7 @@ io.on('connection', function(socket){
         playerName = (displaynames[socket.id]);
         for(var i in SOCKET_LIST){
             if (currSockets.includes(parseFloat(i))){
-                SOCKET_LIST[i].emit('addToChat',`<span id='player-name'>${playerName}</span>: ${data}`);
+                SOCKET_LIST[i].emit('addToChat',`<span id='player-name'>${playerName}</span>: <span class="message-content">${data}</span>`);
             }
         }
     });
@@ -264,32 +319,56 @@ io.on('connection', function(socket){
     });
 
     //at a fixed time interval, send each socket the game data for the room its in
-    //TODO: to each socket, only emit from the game object their roomid
     setInterval(function(){
-        socket.emit('gameUpdate',games);
-        /*
-        for(var i in SOCKET_LIST){
-            pack = games[usersRoomid[i]];
-            SOCKET_LIST[i].emit('gameUpdate',pack);
+        // Safety check if socket is still connected
+        if (!SOCKET_LIST[socket.id]) return;
+        
+        socket.emit('gameUpdate', games);
+        
+        // Also periodically send user list updates to ensure it stays in sync
+        const roomid = usersRoomid[socket.id];
+        if (roomid && games[roomid] && games[roomid].userList) {
+            socket.emit('updateUserList', games[roomid].userList);
         }
-        */
     },50);
 
     //******************* ON USER DISCONNECT *******************
     socket.on('disconnect',function(){
-        roomid = usersRoomid[socket.id];
-        //do this if the roomid still exists (server refresh deletes all games so much check for this)
+        const roomid = usersRoomid[socket.id];
+        if (!roomid) {
+            // User had no room, just clean up their data
+            delete displaynames[socket.id];
+            delete usersRoomid[socket.id];
+            delete SOCKET_LIST[socket.id];
+            return;
+        }
+        
+        //do this if the roomid still exists (server refresh deletes all games so must check for this)
         if(typeof games[roomid] !== 'undefined'){
             //tell room the user is leaving
-            currSockets = games[roomid].socketsInGame;
-            playerName = (displaynames[socket.id]);
-            for(var i in SOCKET_LIST){
-                if (currSockets.includes(parseFloat(i))){
-                    SOCKET_LIST[i].emit('addToChatServer',displaynames[socket.id] + ' has left the game');
+            const currSockets = games[roomid].socketsInGame || [];
+            const playerName = displaynames[socket.id] || "A player";
+            
+            // Remove the user from the userList
+            if (games[roomid].userList) {
+                const userIndex = games[roomid].userList.indexOf(playerName);
+                if (userIndex > -1) {
+                    games[roomid].userList.splice(userIndex, 1);
                 }
             }
+            
+            for(var i in SOCKET_LIST){
+                if (currSockets.includes(parseFloat(i))){
+                    SOCKET_LIST[i].emit('addToChatServer', `${playerName} has left the game`);
+                }
+            }
+            
             //delete their socketid from the games object
             games[roomid].socketsInGame = games[roomid].socketsInGame.filter(v => v !== socket.id);
+            
+            // Update user list for remaining users
+            updateUserListForRoom(roomid);
+            
             //delete the room from games object if no other users are in it
             if (games[roomid].socketsInGame === undefined || games[roomid].socketsInGame.length == 0){
                 delete games[roomid];
@@ -301,7 +380,6 @@ io.on('connection', function(socket){
         delete usersRoomid[socket.id];
         //delete the user from the socket_list
         delete SOCKET_LIST[socket.id];
-
     });
 });
 

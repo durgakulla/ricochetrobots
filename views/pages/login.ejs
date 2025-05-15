@@ -8,20 +8,78 @@
     <body>
         <div id="main-login-wrap">
             <h1>Ricochet Robots</h1>
-            <p>To create a new game or join an existing game, enter a room ID and click Go!</p>
+            <p>Create a new game or join an existing one by entering a room ID.</p>
             <form id="login-form">
-                <input autofocus type="text" name="name" class="question" id="roomid-input" required autocomplete="off" />
-                <input type="submit" value="Go!">
+                <input autofocus type="text" name="name" class="question" id="roomid-input" required autocomplete="off" placeholder="Room ID" />
+                <input type="submit" value="Play!">
             </form>
         </div>
+
+        <!-- Connection status indicator -->
+        <div id="connection-status" class="connection-status" style="display:none;">Connected</div>
+
         <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
         <script>
             var loginForm = document.getElementById('login-form');
             var roomidInput = document.getElementById('roomid-input');
-            var socket = io();
+            var connectionStatus = document.getElementById("connection-status");
+            
+            // Configure Socket.IO with reconnection settings
+            var socket = io({
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000
+            });
+
+            // Connection status updates
+            socket.on('connect', function() {
+                connectionStatus.textContent = "Connected";
+                connectionStatus.className = "connection-status";
+                connectionStatus.style.display = "block";
+                setTimeout(() => {
+                    connectionStatus.style.display = "none";
+                }, 3000);
+            });
+
+            socket.on('disconnect', function() {
+                connectionStatus.textContent = "Disconnected";
+                connectionStatus.className = "connection-status disconnected";
+                connectionStatus.style.display = "block";
+            });
+
+            socket.on('reconnecting', function(attemptNumber) {
+                connectionStatus.textContent = `Reconnecting (${attemptNumber})...`;
+                connectionStatus.className = "connection-status reconnecting";
+                connectionStatus.style.display = "block";
+            });
+
+            // Generate a fallback room name client-side
+            function generateFallbackRoomName() {
+                const adjectives = ['red', 'blue', 'green', 'happy', 'smart', 'bold', 'brave', 'calm'];
+                const nouns = ['robot', 'player', 'game', 'team', 'room', 'group', 'squad'];
+                const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+                const noun = nouns[Math.floor(Math.random() * nouns.length)];
+                const num = Math.floor(Math.random() * 1000);
+                return `${adj}-${noun}-${num}`;
+            }
+
+            // Set a default room name immediately
+            roomidInput.value = generateFallbackRoomName();
 
             socket.on('randomRoomName', function(data){
-                roomidInput.value = data;
+                if (data) {
+                    roomidInput.value = data;
+                }
+            });
+
+            socket.on('connect_error', function(error) {
+                console.log('Connection error:', error);
+                connectionStatus.textContent = "Connection Error";
+                connectionStatus.className = "connection-status disconnected";
+                connectionStatus.style.display = "block";
+                // Keep the fallback name we already set
             });
 
             loginForm.onsubmit = function(e){

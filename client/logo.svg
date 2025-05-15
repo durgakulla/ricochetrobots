@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="100" viewBox="0 0 320 100">
+  <defs>
+    <!-- Text Gradients -->
+    <linearGradient id="titleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3498db" />
+      <stop offset="100%" stop-color="#2980b9" />
+    </linearGradient>
+    
+    <linearGradient id="subtitleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7f8c8d" />
+      <stop offset="100%" stop-color="#2c3e50" />
+    </linearGradient>
+    
+    <!-- Robot Gradients -->
+    <radialGradient id="redGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#ff6b6b" />
+      <stop offset="80%" stop-color="#e74c3c" />
+      <stop offset="100%" stop-color="#c0392b" />
+    </radialGradient>
+    
+    <radialGradient id="greenGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#7bed9f" />
+      <stop offset="80%" stop-color="#2ecc71" />
+      <stop offset="100%" stop-color="#27ae60" />
+    </radialGradient>
+    
+    <radialGradient id="blueGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#74b9ff" />
+      <stop offset="80%" stop-color="#3498db" />
+      <stop offset="100%" stop-color="#2980b9" />
+    </radialGradient>
+    
+    <radialGradient id="yellowGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#ffeaa7" />
+      <stop offset="80%" stop-color="#f1c40f" />
+      <stop offset="100%" stop-color="#f39c12" />
+    </radialGradient>
+    
+    <!-- Shadow Effects -->
+    <filter id="textShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+      <feOffset dx="2" dy="2" result="offsetblur" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+    <filter id="robotShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+      <feOffset dx="1" dy="1" result="offsetblur" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.5" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="0" y="0" width="320" height="100" rx="10" ry="10" fill="#f5f7fa" opacity="0.4" />
+  
+  <!-- Title -->
+  <text x="110" y="45" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="32" fill="url(#titleGradient)" filter="url(#textShadow)">RICOCHET</text>
+  <text x="135" y="75" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="32" fill="url(#titleGradient)" filter="url(#textShadow)">ROBOTS</text>
+  
+  <!-- Red Robot -->
+  <circle cx="40" cy="50" r="18" fill="url(#redGradient)" stroke="#c0392b" stroke-width="1" filter="url(#robotShadow)" />
+  <circle cx="33" cy="43" r="4" fill="white" stroke="#c0392b" stroke-width="0.5" />
+  <circle cx="33" cy="43" r="2" fill="#333" />
+  <circle cx="47" cy="43" r="4" fill="white" stroke="#c0392b" stroke-width="0.5" />
+  <circle cx="47" cy="43" r="2" fill="#333" />
+  <path d="M 32 55 Q 40 62 48 55" stroke="#c0392b" stroke-width="1.5" fill="none" />
+  
+  <!-- Green Robot -->
+  <circle cx="80" cy="50" r="18" fill="url(#greenGradient)" stroke="#27ae60" stroke-width="1" filter="url(#robotShadow)" />
+  <circle cx="73" cy="43" r="4" fill="white" stroke="#27ae60" stroke-width="0.5" />
+  <circle cx="73" cy="43" r="2" fill="#333" />
+  <circle cx="87" cy="43" r="4" fill="white" stroke="#27ae60" stroke-width="0.5" />
+  <circle cx="87" cy="43" r="2" fill="#333" />
+  <path d="M 72 55 Q 80 62 88 55" stroke="#27ae60" stroke-width="1.5" fill="none" />
+  
+  <!-- Yellow Robot -->
+  <circle cx="280" cy="50" r="18" fill="url(#yellowGradient)" stroke="#f39c12" stroke-width="1" filter="url(#robotShadow)" />
+  <circle cx="273" cy="43" r="4" fill="white" stroke="#f39c12" stroke-width="0.5" />
+  <circle cx="273" cy="43" r="2" fill="#333" />
+  <circle cx="287" cy="43" r="4" fill="white" stroke="#f39c12" stroke-width="0.5" />
+  <circle cx="287" cy="43" r="2" fill="#333" />
+  <path d="M 272 55 Q 280 62 288 55" stroke="#f39c12" stroke-width="1.5" fill="none" />
+  
+  <!-- Blue Robot -->
+  <circle cx="240" cy="50" r="18" fill="url(#blueGradient)" stroke="#2980b9" stroke-width="1" filter="url(#robotShadow)" />
+  <circle cx="233" cy="43" r="4" fill="white" stroke="#2980b9" stroke-width="0.5" />
+  <circle cx="233" cy="43" r="2" fill="#333" />
+  <circle cx="247" cy="43" r="4" fill="white" stroke="#2980b9" stroke-width="0.5" />
+  <circle cx="247" cy="43" r="2" fill="#333" />
+  <path d="M 232 55 Q 240 62 248 55" stroke="#2980b9" stroke-width="1.5" fill="none" />
+</svg>

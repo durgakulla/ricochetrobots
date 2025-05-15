@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+  <!-- Wall Element -->
+  <defs>
+    <linearGradient id="wallGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#495057" />
+      <stop offset="100%" stop-color="#343a40" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="30" height="30" fill="url(#wallGradient)" />
+  
+  <!-- Wall texture -->
+  <rect x="0" y="0" width="15" height="15" fill="#495057" opacity="0.3" />
+  <rect x="15" y="15" width="15" height="15" fill="#495057" opacity="0.3" />
+  
+  <!-- Highlight on top and left edges -->
+  <line x1="0" y1="0" x2="30" y2="0" stroke="#6c757d" stroke-width="1" />
+  <line x1="0" y1="0" x2="0" y2="30" stroke="#6c757d" stroke-width="1" />
+  
+  <!-- Shadow on bottom and right edges -->
+  <line x1="0" y1="30" x2="30" y2="30" stroke="#212529" stroke-width="1" />
+  <line x1="30" y1="0" x2="30" y2="30" stroke="#212529" stroke-width="1" />
+</svg>
