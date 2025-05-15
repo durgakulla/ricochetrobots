@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Ricochet Robots</title>
+        <link rel="stylesheet" type="text/css" href="/client/style.css">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <div id="main-login-wrap">
+            <h1>Ricochet Robots</h1>
+            <p>To create a new game or join an existing game, enter a room ID and click Go!</p>
+            <form id="login-form">
+                <input autofocus type="text" name="name" class="question" id="roomid-input" required autocomplete="off" />
+                <input type="submit" value="Go!">
+            </form>
+        </div>
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+        <script>
+            var loginForm = document.getElementById('login-form');
+            var roomidInput = document.getElementById('roomid-input');
+            var socket = io();
+
+            socket.on('randomRoomName', function(data){
+                roomidInput.value = data;
+            });
+
+            loginForm.onsubmit = function(e){
+                e.preventDefault();
+                window.location.href = 'id-'+roomidInput.value;
+            }
+        </script>
+    </body>
+</html>

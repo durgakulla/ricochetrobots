@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Ricochet Robots</title>
+        <link rel="stylesheet" type="text/css" href="/client/style.css">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <!-- Ask for username to display in the chat -->
+        <div id="login-wrap">
+            <br><br><br>
+            <form id="login-form">
+                <label for="nme"><span>Enter a display name.</span></label><br>
+                <input autofocus type="text" name="name" class="question" id="name-input" required autocomplete="off" maxlength="12" />
+                <input type="submit" value="Play">
+            </form>
+        </div>
+
+        <!-- display the canvas and chatbox -->
+        <div id="game-wrap" style="width:800px;display:none;margin: 0 auto; margin-top: 0;">
+            <div id="center" style="width:800px;margin: 0 auto;"><a href="/"><img style="position:relative; left:70px;" width="400px" src="/client/logo.jpg"/></a></div>
+            <div id="canvas-wrap" style="width: 540px;height: 540px;position: relative;top: 0;right: 0;">
+                <canvas id="ctx" width="540" height="540" style="display:inline;"></canvas>
+            </div>
+            <div id="chat-wrap" style="outline: 2px solid black;outline-offset: -2px;width:300px;height:540px;position:relative; left:540px; bottom:540px;">
+                <div id="chat-text" style="width:100%;height:480px;overflow-y:scroll;display: flex;flex-direction: column-reverse;">
+                </div>
+                <form id="chat-form" style="">
+                    <input id="chat-input" class="question" type="text" style="width:300px;height:50px;border-top: 2px solid black;z-index: -1000;" placeholder="Type a message...">
+                </form>
+                <div style="display: flex; justify-content: space-around; padding: 5px;">
+                    <button style="width:90px;" type="gamebutton" id="start-timer">Start Timer</button>
+                    <button style="width:90px;" type="gamebutton" id="reset-pieces">Reset</button>
+                    <button style="width:90px;" type="gamebutton" id="new-game">New Level</button>
+                </div>
+            </div>
+            <div id="url" style="position:relative; bottom:530px;z-index:100;">Share this link to play with friends</div>
+            <div id="instructions" style="position:relative; bottom:520px;z-index:100;">
+                <h3>Controls:</h3>
+                <ul>
+                    <li>Select robots with number keys: 1 (Red), 2 (Green), 3 (Blue), 4 (Yellow)</li>
+                    <li>Move selected robot with arrow keys</li>
+                    <li>Press Space to reset pieces</li>
+                    <li>Press N for a new level</li>
+                </ul>
+                <p>The goal is to move the colored robot to the matching goal space using the fewest moves!</p>
+            </div>
+        </div>
+
+        <!-- the following scripts control client game rendering -->
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+        <script>
+            // Load images with error handling
+            function loadImage(src) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => {
+                        console.warn(`Failed to load image: ${src}`);
+                        // Create a fallback canvas with color
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 30;
+                        canvas.height = 30;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Choose color based on filename
+                        let color;
+                        if (src.includes('red')) color = '#e74c3c';
+                        else if (src.includes('green')) color = '#2ecc71';
+                        else if (src.includes('blue')) color = '#3498db';
+                        else if (src.includes('yellow')) color = '#f1c40f';
+                        else if (src.includes('wall')) color = '#333333';
+                        else if (src.includes('border')) color = '#000000';
+                        else if (src.includes('tile')) color = '#f0f0f0';
+                        else color = '#cccccc';
+                        
+                        ctx.fillStyle = color;
+                        ctx.fillRect(0, 0, 30, 30);
+                        
+                        const dataUrl = canvas.toDataURL();
+                        const fallbackImg = new Image();
+                        fallbackImg.src = dataUrl;
+                        fallbackImg.onload = () => resolve(fallbackImg);
+                    };
+                    img.src = src;
+                });
+            }
+
+            // Load all the images
+            Promise.all([
+                loadImage('/client/border.png'),
+                loadImage('/client/wall.png'),
+                loadImage('/client/tile.png'),
+                loadImage('/client/red.png'),
+                loadImage('/client/green.png'),
+                loadImage('/client/blue.png'),
+                loadImage('/client/yellow.png')
+            ]).then(images => {
+                const [border, wall, tile, redpiece, greenpiece, bluepiece, yellowpiece] = images;
+                
+                // Store the images for later use
+                window.gameImages = {
+                    border, wall, tile, redpiece, greenpiece, bluepiece, yellowpiece
+                };
+                
+                // If we have a game loaded and images ready, trigger a redraw
+                if (window.loaded && window.game) {
+                    drawGame(window.game);
+                }
+            });
+
+            //read in form inputs and html/canvas elements
+            var urlDiv = document.getElementById("url");
+            var loginWrap = document.getElementById("login-wrap");
+            var gameWrap = document.getElementById("game-wrap");
+            var loginForm = document.getElementById('login-form');
+            var nameInput = document.getElementById('name-input');
+            var chatText = document.getElementById('chat-text');
+            var chatInput = document.getElementById('chat-input');
+            var chatForm = document.getElementById('chat-form');
+            var canvas = document.getElementById("ctx");
+            var ctx = document.getElementById("ctx").getContext("2d");
+            var clientname;
+            var roomid = window.location.pathname.split('id-').pop();
+            var loaded = false;
+            window.loaded = false;
+
+            // Configure Socket.IO with reconnection settings
+            var socket = io({
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000
+            });
+
+            //when a user provides their displayname, send to server
+            //also send the server the roomid of the room user is joining
+            loginForm.onsubmit = function(e){
+                e.preventDefault();
+                clientname = nameInput.value;
+                socket.emit('sendRoomidToServer', roomid);
+                socket.emit('sendDisplaynameToServer', [nameInput.value]);
+            }
+
+            //Server tells client to showboard after user submits their display name
+            socket.on('showBoard', function(){
+                loginWrap.style.display = "none";
+                gameWrap.style.display = "block";
+                loaded = true;
+                window.loaded = true;
+                
+                // Update URL display
+                const protocol = window.location.protocol;
+                const host = window.location.host;
+                const fullUrl = `${protocol}//${host}/id-${roomid}`;
+                urlDiv.innerHTML = `Share this link to play with friends: <a href="${fullUrl}">${fullUrl}</a>`;
+            });
+
+            //Send a chat message to the server
+            chatForm.onsubmit = function(e){
+                e.preventDefault();
+                if(chatInput.value.trim() === '') {
+                    return; // Don't send empty messages
+                }
+                if(chatInput.value[0] === '/')
+                    socket.emit('evalServer', chatInput.value.slice(1));
+                else
+                    socket.emit('sendMsgToServer', chatInput.value);
+                chatInput.value = '';
+            }
+
+            //Server tells client to display a chat message the room received
+            socket.on('addToChat', function(data){
+                if(data.includes(clientname+"</span>:")){
+                    chatText.innerHTML = "<div id='this-player'>" + data + '</div>' + chatText.innerHTML;
+                }
+                else{
+                    chatText.innerHTML = '<div>' + data + '</div>' + chatText.innerHTML;
+                }
+            });
+            
+            socket.on('addToChatServer', function(data){
+                chatText.innerHTML = "<div id='server-message'>" + data + '</div>' + chatText.innerHTML;
+            });
+
+            //Tell server a keypress occurred, only if the user isn't using the chat
+            document.onkeydown = function(event){
+                if(document.activeElement.tagName != 'INPUT'){
+                    if(event.keyCode === 39){    //arrow right
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'right', state:true});
+                    }
+                    else if(event.keyCode === 40){   //arrow down
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'down', state:true});
+                    }
+                    else if(event.keyCode === 37){ //arrow left
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'left', state:true});
+                    }
+                    else if(event.keyCode === 38){ // arrow up
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'up', state:true});
+                    }
+                    else if(event.keyCode === 49){ // 1
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'one', state:true});
+                    }
+                    else if(event.keyCode === 50){ // 2
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'two', state:true});
+                    }
+                    else if(event.keyCode === 51){ // 3
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'three', state:true});
+                    }
+                    else if(event.keyCode === 52){ // 4
+                        event.preventDefault();
+                        socket.emit('keyPress', {roomid: roomid, inputId:'four', state:true});
+                    }
+                    else if(event.keyCode === 32){ // spacebar
+                        event.preventDefault();
+                        socket.emit('resetPieces', roomid);
+                    }
+                    else if(event.keyCode === 78){ // n
+                        event.preventDefault();
+                        socket.emit('newLevel', roomid);
+                    }
+                }
+            }
+            
+            //Tell server a keypress has ended, only if the user isn't using the chat
+            document.onkeyup = function(event){
+                if(document.activeElement.tagName != 'INPUT'){
+                    if(event.keyCode === 39)    //arrow right
+                        socket.emit('keyPress', {roomid: roomid, inputId:'right', state:false});
+                    else if(event.keyCode === 40)   //arrow down
+                        socket.emit('keyPress', {roomid: roomid, inputId:'down', state:false});
+                    else if(event.keyCode === 37) //arrow left
+                        socket.emit('keyPress', {roomid: roomid, inputId:'left', state:false});
+                    else if(event.keyCode === 38) // arrow up
+                        socket.emit('keyPress', {roomid: roomid, inputId:'up', state:false});
+                    else if(event.keyCode === 49) // 1
+                        socket.emit('keyPress', {roomid: roomid, inputId:'one', state:false});
+                    else if(event.keyCode === 50) // 2
+                        socket.emit('keyPress', {roomid: roomid, inputId:'two', state:false});
+                    else if(event.keyCode === 51) // 3
+                        socket.emit('keyPress', {roomid: roomid, inputId:'three', state:false});
+                    else if(event.keyCode === 52) // 4
+                        socket.emit('keyPress', {roomid: roomid, inputId:'four', state:false});
+                }
+            }
+
+            // Draw game function - separated for clarity
+            function drawGame(game) {
+                if (!window.gameImages) return; // Wait for images to load
+                
+                const squareSize = 30;
+                //position of board's top left.
+                const boardTopx = 0;
+                const boardTopy = 0;
+                //draw the outside walls
+                for(let i=0; i<game.board.length; i++) {
+                    for(let j=0; j<game.board[0].length; j++) {
+                        let xOffset = boardTopx + j*squareSize;
+                        let yOffset = boardTopy + i*squareSize;
+                        ctx.lineWidth = 1.5;
+                        if(game.board[i][j] === 9){
+                            ctx.fillStyle = "black";
+                            ctx.drawImage(window.gameImages.border, xOffset, yOffset, squareSize, squareSize);
+                        }
+                        else{
+                            ctx.fillStyle = "white";
+                            ctx.strokeStyle = "#D0D0D0";
+                            ctx.strokeRect(xOffset, yOffset, squareSize, squareSize);
+                            ctx.drawImage(window.gameImages.tile, xOffset, yOffset, squareSize, squareSize);
+                        }
+                    }
+                }
+                //draw the walls
+                for(let i=0; i<game.board.length; i++) {
+                    for(let j=0; j<game.board[0].length; j++) {
+                        let xOffset = boardTopx + j*squareSize;
+                        let yOffset = boardTopy + i*squareSize;
+
+                        ctx.fillStyle = "black";
+                        if(game.board[i][j] === 1){
+                            ctx.drawImage(window.gameImages.wall, xOffset-3, yOffset-3, squareSize+6, squareSize/5);
+                        }
+                        else if(game.board[i][j] === 2){
+                            ctx.drawImage(window.gameImages.wall, xOffset+(squareSize-3), yOffset-3, squareSize/5, squareSize+6);
+                        }
+                        else if(game.board[i][j] === 3){
+                            ctx.drawImage(window.gameImages.wall, xOffset-3, yOffset+(squareSize-3), squareSize+6, squareSize/5);
+                        }
+                        else if(game.board[i][j] === 4){
+                            ctx.drawImage(window.gameImages.wall, xOffset-3, yOffset-3, squareSize/5, squareSize+6);
+                        }
+                    }
+                }
+                //draw the center piece
+                ctx.fillRect(boardTopx+8*squareSize, boardTopy+8*squareSize, squareSize*2, squareSize*2);
+                //draw the timer on the center piece if its value is not 0
+                ctx.fillStyle = "white";
+                ctx.font = '30px sans-serif';
+                ctx.textAlign = "center";
+                if(game.timer > 0){
+                    ctx.fillText(game.timer, boardTopx+9*squareSize, boardTopy+9.25*squareSize);
+                }
+                //draw the border around the board
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = "black";
+                ctx.strokeRect(boardTopx+squareSize-ctx.lineWidth/2, boardTopy+squareSize-ctx.lineWidth/2, 
+                              squareSize*game.board.length-squareSize*2+ctx.lineWidth, squareSize*game.board.length-squareSize*2+ctx.lineWidth)
+                //draw the goal. bigger size is smaller.
+                goalsize = 1.5;
+                ctx.fillStyle = game.goalColorPosition.color;
+                ctx.globalAlpha = 0.6;
+                ctx.fillRect(boardTopx+game.goalColorPosition.position[1]*squareSize+((squareSize-squareSize/goalsize)/2), 
+                            boardTopy+game.goalColorPosition.position[0]*squareSize+((squareSize-squareSize/goalsize)/2), 
+                            squareSize/goalsize, squareSize/goalsize);
+                ctx.globalAlpha = 1.0;
+                //draw each game piece
+                for(piece in game.piecePositions){
+                    let yOffset = boardTopy + game.piecePositions[piece][0]*squareSize;
+                    let xOffset = boardTopx + game.piecePositions[piece][1]*squareSize;
+                    if(piece =='red'){
+                        ctx.drawImage(window.gameImages.redpiece, xOffset, yOffset, squareSize, squareSize);
+                    }
+                    else if(piece =='green'){
+                        ctx.drawImage(window.gameImages.greenpiece, xOffset, yOffset, squareSize, squareSize);
+                    }
+                    else if(piece =='blue'){
+                        ctx.drawImage(window.gameImages.bluepiece, xOffset, yOffset, squareSize, squareSize);
+                    }
+                    else if(piece =='yellow'){
+                        ctx.drawImage(window.gameImages.yellowpiece, xOffset, yOffset, squareSize, squareSize);
+                    }
+                    else if(piece =='black'){
+                        ctx.fillStyle = piece;
+                        ctx.drawImage(window.gameImages.border, xOffset, yOffset, squareSize, squareSize);
+                    }
+                }
+            }
+
+            socket.on('gameUpdate', function(games){
+                if(loaded){
+                    const game = games[roomid];
+                    if (!game) return; // Safety check
+                    
+                    // Store the game for potential redraws
+                    window.game = game;
+                    
+                    // Draw the game
+                    drawGame(game);
+                }
+            });
+
+            // Event handlers for buttons
+            window.onload = function() {
+                var timerbutton = document.getElementById('start-timer');
+                timerbutton.onclick = function(){
+                    socket.emit('startTimer', roomid);
+                }
+                
+                var resetbutton = document.getElementById('reset-pieces');
+                resetbutton.onclick = function(){
+                    socket.emit('resetPieces', roomid);
+                }
+                
+                var newgamebutton = document.getElementById('new-game');
+                newgamebutton.onclick = function(){
+                    socket.emit('newLevel', roomid);
+                }
+            };
+            
+            // Handle connection errors
+            socket.on('connect_error', function(error) {
+                console.log('Connection error:', error);
+                chatText.innerHTML = "<div id='server-message'>Connection error. Attempting to reconnect...</div>" + chatText.innerHTML;
+            });
+            
+            socket.on('reconnect', function(attemptNumber) {
+                console.log('Reconnected after', attemptNumber, 'attempts');
+                chatText.innerHTML = "<div id='server-message'>Reconnected to the server.</div>" + chatText.innerHTML;
+            });
+        </script>
+    </body>
+</html>
