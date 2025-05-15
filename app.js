@@ -2,8 +2,25 @@
 var express = require('express');
 var app = express();
 var serv = require('http').Server(app);
-var randomWords = require('random-words');
 var path = require('path');
+
+// Custom random name generator (instead of random-words package)
+function generateRandomRoomName() {
+  const adjectives = [
+    'red', 'blue', 'green', 'yellow', 'purple', 'orange', 'teal', 'pink',
+    'happy', 'clever', 'swift', 'brave', 'calm', 'eager', 'fancy', 'jolly'
+  ];
+  
+  const nouns = [
+    'robot', 'player', 'gamer', 'wizard', 'knight', 'archer', 'ranger', 'mage',
+    'team', 'squad', 'group', 'crew', 'gang', 'band', 'club', 'pack'
+  ];
+  
+  const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+  
+  return `${randomAdjective}-${randomNoun}`;
+}
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views', 'pages'));
@@ -113,7 +130,7 @@ setInterval(function(){
 var io = require('socket.io')(serv);
 io.on('connection', function(socket){
     //******************* ON USER CONNECT *******************
-    socket.emit('randomRoomName',randomWords({exactly:2,join:'-'}));
+    socket.emit('randomRoomName', generateRandomRoomName());
     //generate a random number to assign as a socket.id to the connecting user
     socket.id = Math.random();
     //put that number into the socket_list
@@ -405,7 +422,7 @@ function rotateCW(matrix){
     return newMatrix;
 }
 
-//make a random board using the prefedined (from the real game) quarterBoard pieces
+//make a random board using the predefined (from the real game) quarterBoard pieces
 function generateBoard(){
     remainingQuarters = [...quarterBoards];
     quadOne = [];
@@ -416,7 +433,7 @@ function generateBoard(){
     indexToUse = Math.floor(Math.random() * 8);
     quadOne = quarterBoards[indexToUse];
     remainingQuarters.splice(indexToUse, 1);
-    //pick a quarter board to use, assign it to quadrant 2 (rotate oce to top right), and delete from the list
+    //pick a quarter board to use, assign it to quadrant 2 (rotate once to top right), and delete from the list
     indexToUse = Math.floor(Math.random() * 7);
     quadTwo = quarterBoards[indexToUse];
     remainingQuarters.splice(indexToUse, 1);
@@ -492,7 +509,6 @@ function pieceInDirection(direction, piecePosition, piecePositions){
     else if (direction == 'up'){
         locationToCheck = [piecePosition[0]-1, piecePosition[1]];
     }
-
     else if (direction == 'down'){
         locationToCheck = [piecePosition[0]+1, piecePosition[1]];
     }
